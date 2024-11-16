@@ -1,0 +1,78 @@
+version: '3.8'
+
+networks:
+  public-network:
+    driver: bridge
+
+services:
+  api:
+    container_name: codechat_api
+    image: codechat/api:v1.3.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8084:8084"
+    volumes:
+      - instances_connecteds:/codechat/instances
+    environment:
+      - SERVER_PORT=8084
+      - SESSION_SECRET=W0NvZGVDaGF0XTpbU2Vzc
+      - LOG_LEVEL=ERROR|WARN|INFO|DEBUG|LOG|VERBOSE|DARK
+      - LOG_COLOR=true
+      - DATABASE_ENABLED=false
+      - DATABASE_URL=postgres://postgres:password@postgres/codechat_api_v1?schema=public
+      - DATABASE_SYNC_MESSAGES=true
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=true
+      - DATABASE_SAVE_MESSAGE_UPDATE=true
+      - DATABASE_SAVE_DATA_CONTACTS=true
+      - DATABASE_SAVE_DATA_CHATS=true
+      - GLOBAL_WEBHOOK_URL=url
+      - GLOBAL_WEBHOOK_ENABLED=false
+      - INSTANCE_EXPIRATION_TIME=false
+      - CONFIG_SESSION_PHONE_CLIENT=CodeChat_V1
+      - CONFIG_SESSION_PHONE_NAME=Edge
+      - QRCODE_LIMIT=10
+      - QRCODE_EXPIRATION_TIME=180
+      - CONNECTION_TIMEOUT=300
+      - AUTHENTICATION_GLOBAL_AUTH_TOKEN=zYzP7ocstxh3SJ23D4FZTCu4ehnM8v4hu
+      - AUTHENTICATION_JWT_EXPIRES_IN=0
+      - AUTHENTICATION_JWT_SECRET=3RFYiiRmvNiokSBrLZzx
+    networks:
+      - public-network
+
+  # webhook:
+  #   image: whatsapp-webhook:v22
+  #   container_name: webhook 
+  #   environment:
+  #     - ASSISTANT_ID=asst_LHAZ1paHydH7nDb1VbUJUY8n
+  #     - JWT_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpbnN0YW5jZU5hbWUiOiJjb2RlY2hhdC1ib3QiLCJhcGlOYW1lIjoid2hhdHNhcHAtYXBpIiwidG9rZW5JZCI6IjcyOTg4MWNiLWFiNWQtNDUxMC04NTcxLTNjZDY5Mjk3YjViMCIsImlhdCI6MTcwNjg5MDIxNCwiZXhwIjoxNzA2ODkwMjE0LCJzdWIiOiJnLXQifQ.nXOw99Tq9wK-lddeJTP8Lr6mH0wpjDfkmkt-XNa_Fz0
+  #     - BOT_NAME=codechat-bot
+  #     - PORT=3000
+  #   volumes:
+  #     - .:/home/node/api
+  #     - /home/node/api/node_modules
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     - public-network
+  
+  postgres:
+    image: postgres:latest
+    container_name: postgres_local
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=codechat_api_v1
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks:
+      - public-network
+
+volumes:
+  instances_connecteds:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
