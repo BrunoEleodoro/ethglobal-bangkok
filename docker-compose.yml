@@ -39,21 +39,19 @@ services:
     networks:
       - public-network
 
-  # webhook:
-  #   image: whatsapp-webhook:v22
-  #   container_name: webhook 
-  #   environment:
-  #     - ASSISTANT_ID=asst_LHAZ1paHydH7nDb1VbUJUY8n
-  #     - JWT_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpbnN0YW5jZU5hbWUiOiJjb2RlY2hhdC1ib3QiLCJhcGlOYW1lIjoid2hhdHNhcHAtYXBpIiwidG9rZW5JZCI6IjcyOTg4MWNiLWFiNWQtNDUxMC04NTcxLTNjZDY5Mjk3YjViMCIsImlhdCI6MTcwNjg5MDIxNCwiZXhwIjoxNzA2ODkwMjE0LCJzdWIiOiJnLXQifQ.nXOw99Tq9wK-lddeJTP8Lr6mH0wpjDfkmkt-XNa_Fz0
-  #     - BOT_NAME=codechat-bot
-  #     - PORT=3000
-  #   volumes:
-  #     - .:/home/node/api
-  #     - /home/node/api/node_modules
-  #   ports:
-  #     - "3000:3000"
-  #   networks:
-  #     - public-network
+  webhook:
+    build: 
+      context: ./backend
+    container_name: webhook 
+    env_file:
+      - .env.webhook
+    volumes:
+      - .:/home/node/api
+      - /home/node/api/node_modules
+    ports:
+      - "3000:3000"
+    networks:
+      - public-network
   
   postgres:
     image: postgres:latest
