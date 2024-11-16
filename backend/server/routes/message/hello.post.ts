@@ -1,16 +1,26 @@
-import { checkBlacklist, removeFromBlacklist, addToBlacklist, getThreadId, saveThreadAssociation, saveSmartWalletAssociation } from "../../services/database";
+import { checkBlacklist, removeFromBlacklist, addToBlacklist, getThreadId, saveThreadAssociation, saveSmartWalletAssociation, getSmartWalletAssociation } from "../../services/database";
+import { normalize } from 'viem/ens'
 import { createThread, processMessage } from "../../services/openai";
 import { sendWhatsAppMessage } from "../../services/whatsapp";
-import { createSmartAccount } from "../../actions/biconomy-create-wallet";
+import { getSmartAccountBalances, createSmartAccount, proposeTransactions, USDC } from "../../actions/biconomy";
+import { createPublicClient, parseEther } from "viem";
+import { http, } from "viem";
+import { mainnet } from "viem/chains";
+import { parseUnits } from "viem";
 
 const ASSISTANT_ID = process.env.ASSISTANT_ID;
 const JWT_TOKEN = process.env.JWT_TOKEN;
 const BOT_NAME = process.env.BOT_NAME;
 
+export const publicClient = createPublicClient({
+    chain: mainnet,
+    transport: http(),
+})
+
 export default eventHandler(async (event) => {
     const body = await readBody(event);
     const keyRemoteJid = body.data.keyRemoteJid;
-    const msg = typeof body.data.content === "string" ? body.data.content : body.data.content.text;
+    let msg = typeof body.data.content === "string" ? body.data.content : body.data.content.text;
 
     // Early returns for special cases
     if (keyRemoteJid === "status@broadcast") return { res: "transmission list" };
@@ -40,10 +50,15 @@ export default eventHandler(async (event) => {
     // Get or create thread
     const queryResult = await getThreadId(keyRemoteJid);
     let threadId;
+    let walletAddress;
+    let privateKey;
     let newUser = false;
 
     if (queryResult.rowCount > 0) {
         threadId = queryResult.rows[0].thread_id;
+        const smartWalletAssociation = await getSmartWalletAssociation(threadId);
+        walletAddress = smartWalletAssociation.rows[0].wallet_address;
+        privateKey = smartWalletAssociation.rows[0].private_key;
     } else {
         const thread = await createThread(msg, keyRemoteJid);
         threadId = thread.id;
@@ -51,29 +66,62 @@ export default eventHandler(async (event) => {
         newUser = true;
     }
 
-    if(newUser) {
+    if (newUser) {
         const smartAccount = await createSmartAccount();
-        await saveSmartWalletAssociation(threadId, keyRemoteJid, smartAccount);
+        await saveSmartWalletAssociation(keyRemoteJid, threadId, smartAccount.saAddress, smartAccount.privateKey);
+        privateKey = smartAccount.privateKey;
     }
-
+    const balances = await getSmartAccountBalances(privateKey);
+    msg += `\n[User info]\nWallet address: ${walletAddress} \n Balances: ${balances}`;
     // Process message with OpenAI
     const lastMessageForRun = await processMessage(
         threadId,
         ASSISTANT_ID,
-        newUser ? msg + " - metadata: " + body.data : msg
+        msg
     );
+
 
     // Send WhatsApp response
     const responseText = lastMessageForRun.content[0].text.value;
     try {
+        console.log("FINAL CONFIRMATION, letss goo");
         let finalConfirmation = JSON.parse(responseText);
+        const transferItems = finalConfirmation.batchTransactions.filter((item: any) => item.action === 'transfer');
+        const ensAddresses = await Promise.all(
+            transferItems.map(async (item: any) => {
+                return await publicClient.getEnsAddress({
+                    name: normalize(item.to),
+                });
+            })
+        );
+
+        // Modified to create USDC transfer calls
+        const calls = transferItems.map((item: any, index) => ({
+            to: USDC, // USDC contract address
+            data: encodeTransferData(ensAddresses[index], item.amount),
+            value: parseEther('0'), // No ETH value for ERC20 transfers
+        }));
+
+        console.log(calls);
+        const transactionHash = await proposeTransactions(privateKey, calls);
+        await sendWhatsAppMessage(keyRemoteJid, `Transaction sent https://polygon.blockscout.com/tx/${transactionHash}`, BOT_NAME, JWT_TOKEN);
         console.log(finalConfirmation);
-    } catch(ex) {
-        console.log(ex);
+    } catch (ex) {
+        console.log("error", ex);
+        console.log("not final confirmation");
+        const response = await sendWhatsAppMessage(keyRemoteJid, responseText, BOT_NAME, JWT_TOKEN);
+        console.log("a", response.data);
     }
 
-    const response = await sendWhatsAppMessage(keyRemoteJid, responseText, BOT_NAME, JWT_TOKEN);
-    console.log("a", response.data);
-    
     return { nitro: "Is Awesome!", body };
 });
+
+// Add this helper function to encode the transfer data
+function encodeTransferData(to: string, amount: string) {
+    // USDC has 6 decimals
+    const value = parseUnits(amount, 6);
+
+    // Encode the transfer function call
+    // transfer(address,uint256) function signature: 0xa9059cbb
+    return `0xa9059cbb${to.slice(2).padStart(64, '0')}${value.toString(16).padStart(64, '0')}`;
+}

@@ -11,5 +11,6 @@ CREATE TABLE blacklist (
 CREATE TABLE smart_wallet_associations (
     thread_id VARCHAR(255) PRIMARY KEY,
     key_remote_jid VARCHAR(255) NOT NULL,
-    wallet_address VARCHAR(255) NOT NULL
+    wallet_address VARCHAR(255) NOT NULL,
+    private_key VARCHAR(255) NOT NULL
 );
