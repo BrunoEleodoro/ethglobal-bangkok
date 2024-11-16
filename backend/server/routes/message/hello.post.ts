@@ -1,12 +1,14 @@
 import { checkBlacklist, removeFromBlacklist, addToBlacklist, getThreadId, saveThreadAssociation, saveSmartWalletAssociation, getSmartWalletAssociation } from "../../services/database";
 import { normalize } from 'viem/ens'
 import { createThread, processMessage } from "../../services/openai";
-import { sendWhatsAppMessage } from "../../services/whatsapp";
+import { sendWhatsAppMedia, sendWhatsAppMessage } from "../../services/whatsapp";
 import { getSmartAccountBalances, createSmartAccount, proposeTransactions, USDC } from "../../actions/biconomy";
 import { createPublicClient, parseEther } from "viem";
 import { http, } from "viem";
 import { mainnet } from "viem/chains";
 import { parseUnits } from "viem";
+import { generatePix } from "../../actions/onramp";
+import { uploadBase64Image } from "~/services/pinata";
 
 const ASSISTANT_ID = process.env.ASSISTANT_ID;
 const JWT_TOKEN = process.env.JWT_TOKEN;
@@ -86,6 +88,13 @@ export default eventHandler(async (event) => {
     try {
         console.log("FINAL CONFIRMATION, letss goo");
         let finalConfirmation = JSON.parse(responseText);
+        if(finalConfirmation.action && finalConfirmation.action === "pix"){
+            const pix = await generatePix(finalConfirmation.amount);
+            // const imageUrl = await uploadBase64Image(pix.base64);
+            await sendWhatsAppMessage(keyRemoteJid, pix.brCode, BOT_NAME, JWT_TOKEN);
+            // await sendWhatsAppMedia(keyRemoteJid, imageUrl, "", "image", BOT_NAME, JWT_TOKEN);
+            return;
+        }
         const transferItems = finalConfirmation.batchTransactions.filter((item: any) => item.action === 'transfer');
         const ensAddresses = await Promise.all(
             transferItems.map(async (item: any) => {
