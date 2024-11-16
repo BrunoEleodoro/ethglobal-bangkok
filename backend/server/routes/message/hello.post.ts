@@ -8,7 +8,7 @@ import { http, } from "viem";
 import { mainnet } from "viem/chains";
 import { parseUnits } from "viem";
 import { generatePix } from "../../actions/onramp";
-import { uploadBase64Image } from "~/services/pinata";
+import { uploadBase64File } from "../../services/s3-aws";
 
 const ASSISTANT_ID = process.env.ASSISTANT_ID;
 const JWT_TOKEN = process.env.JWT_TOKEN;
@@ -90,9 +90,11 @@ export default eventHandler(async (event) => {
         let finalConfirmation = JSON.parse(responseText);
         if(finalConfirmation.action && finalConfirmation.action === "pix"){
             const pix = await generatePix(finalConfirmation.amount);
-            // const imageUrl = await uploadBase64Image(pix.base64);
+            const timestamp = Date.now();
+            const imageUrl = await uploadBase64File(pix.base64, `pix-${timestamp}.png`, "image/png");
+            console.log("imageUrl", imageUrl);
             await sendWhatsAppMessage(keyRemoteJid, pix.brCode, BOT_NAME, JWT_TOKEN);
-            // await sendWhatsAppMedia(keyRemoteJid, imageUrl, "", "image", BOT_NAME, JWT_TOKEN);
+            await sendWhatsAppMedia(keyRemoteJid, imageUrl, BOT_NAME, JWT_TOKEN);
             return;
         }
         const transferItems = finalConfirmation.batchTransactions.filter((item: any) => item.action === 'transfer');
