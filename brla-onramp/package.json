@@ -5,11 +5,11 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
-    "build": "tsup src/server.ts --format cjs,esm --dts"
+    "build": "tsx src/server.ts"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "ISC", 
   "description": "",
   "devDependencies": {
     "@types/node": "^22.9.0",
