@@ -2,13 +2,14 @@ import { checkBlacklist, removeFromBlacklist, addToBlacklist, getThreadId, saveT
 import { normalize } from 'viem/ens'
 import { createThread, processMessage } from "../../services/openai";
 import { sendWhatsAppMedia, sendWhatsAppMessage } from "../../services/whatsapp";
-import { getSmartAccountBalances, createSmartAccount, proposeTransactions, USDC } from "../../actions/biconomy";
-import { createPublicClient, parseEther } from "viem";
+import { getSmartAccountBalances, createSmartAccount, proposeTransactions, USDC, reverseNames, BRLA } from "../../actions/biconomy";
+import { createPublicClient, encodeFunctionData, erc20Abi, parseEther } from "viem";
 import { http, } from "viem";
 import { mainnet } from "viem/chains";
 import { parseUnits } from "viem";
-import { generatePix } from "../../actions/onramp";
+import { generatePix, onchainTransfer } from "../../actions/onramp";
 import { uploadBase64File } from "../../services/s3-aws";
+import { getSwapQuote } from "../../actions/swap-tokens";
 
 const ASSISTANT_ID = process.env.ASSISTANT_ID;
 const JWT_TOKEN = process.env.JWT_TOKEN;
@@ -74,6 +75,7 @@ export default eventHandler(async (event) => {
         privateKey = smartAccount.privateKey;
     }
     const balances = await getSmartAccountBalances(privateKey);
+    console.log("balances", balances);
     msg += `\n[User info]\nWallet address: ${walletAddress} \n Balances: ${balances}`;
     // Process message with OpenAI
     const lastMessageForRun = await processMessage(
@@ -88,14 +90,28 @@ export default eventHandler(async (event) => {
     try {
         console.log("FINAL CONFIRMATION, letss goo");
         let finalConfirmation = JSON.parse(responseText);
-        if(finalConfirmation.action && finalConfirmation.action === "pix"){
+        if (finalConfirmation.action && finalConfirmation.action === "pix") {
             const pix = await generatePix(finalConfirmation.amount);
             const timestamp = Date.now();
             const imageUrl = await uploadBase64File(pix.base64, `pix-${timestamp}.png`, "image/png");
             console.log("imageUrl", imageUrl);
             await sendWhatsAppMessage(keyRemoteJid, pix.brCode, BOT_NAME, JWT_TOKEN);
             await sendWhatsAppMedia(keyRemoteJid, imageUrl, BOT_NAME, JWT_TOKEN);
+            setTimeout(async () => {
+                await onchainTransfer({
+                    "chain": "Polygon",
+                    "inputCoin": "BRLA",
+                    "outputCoin": "BRLA",
+                    "to": walletAddress,
+                    "value": parseInt(finalConfirmation.amount) * 100
+                });
+                await sendWhatsAppMessage(keyRemoteJid, `checking onchain transfer...`, BOT_NAME, JWT_TOKEN);
+            }, 80000);
             return;
+        }
+        let swap = []
+        if (finalConfirmation.action && finalConfirmation.action === "swap") {
+            
         }
         const transferItems = finalConfirmation.batchTransactions.filter((item: any) => item.action === 'transfer');
         const ensAddresses = await Promise.all(
@@ -106,12 +122,36 @@ export default eventHandler(async (event) => {
             })
         );
 
+        const swaps = finalConfirmation.batchTransactions.filter((item: any) => item.action === 'swap');
+        const swapCalls = await Promise.all(swaps.map(async (item: any) => {
+            const swapQuote = await getSwapQuote({
+                fromChain: 137,
+                toChain: 137,
+                fromToken:reverseNames[item.fromToken],
+                toToken: reverseNames[item.toToken],
+                fromAddress: walletAddress,
+                fromAmount: parseUnits(item.fromAmount, 18).toString()
+            });
+            console.log("swapQuote", swapQuote);
+            return [{
+                to: BRLA,
+                data: encodeApproveData(swapQuote.transactionRequest.to, '10', 18),
+                nonce: 0
+            },{
+                to: swapQuote.transactionRequest.to,
+                data: swapQuote.transactionRequest.data,
+                value: parseEther('0'),
+                gasLimit: swapQuote.transactionRequest.gasLimit,
+                gasPrice: swapQuote.transactionRequest.gasPrice,
+            }]
+        }));
+
         // Modified to create USDC transfer calls
         const calls = transferItems.map((item: any, index) => ({
-            to: USDC, // USDC contract address
-            data: encodeTransferData(ensAddresses[index], item.amount),
+            to: reverseNames[item.asset], // USDC contract address
+            data: encodeTransferData(ensAddresses[index], item.amount, item.decimals),
             value: parseEther('0'), // No ETH value for ERC20 transfers
-        }));
+        })).concat(...swapCalls);
 
         console.log(calls);
         const transactionHash = await proposeTransactions(privateKey, calls);
@@ -126,13 +166,26 @@ export default eventHandler(async (event) => {
 
     return { nitro: "Is Awesome!", body };
 });
-
-// Add this helper function to encode the transfer data
-function encodeTransferData(to: string, amount: string) {
+// Helper functions to encode transfer and approve data
+function encodeTransferData(to: string, amount: string, decimals: number) {
     // USDC has 6 decimals
-    const value = parseUnits(amount, 6);
+    const value = parseUnits(amount, decimals);
 
     // Encode the transfer function call
     // transfer(address,uint256) function signature: 0xa9059cbb
     return `0xa9059cbb${to.slice(2).padStart(64, '0')}${value.toString(16).padStart(64, '0')}`;
+}
+
+function encodeApproveData(spender: string, amount: string, decimals: number) {
+    // Convert amount to proper decimals
+    // const value = parseUnits(amount, decimals);
+    const data = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [spender as `0x${string}`, parseUnits(amount, decimals)]
+      })
+      return data;
+    // // Encode the approve function call
+    // // approve(address,uint256) function signature: 0x095ea7b3
+    // return `0x095ea7b3${spender.slice(2).padStart(64, '0')}${value.toString(16).padStart(64, '0')}`;
 }

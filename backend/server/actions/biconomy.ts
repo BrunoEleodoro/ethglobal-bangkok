@@ -8,10 +8,18 @@ const paymasterUrl = `https://paymaster.biconomy.io/api/v1/137/E6qHRjNsR.f48951d
 
 export const USDC = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359";
 export const ETH = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+export const BRLA = "0xE6A537a407488807F0bbeb0038B79004f19DDDFb";
 
-const names = {
+export const names = {
     [USDC]: "USDC",
     [ETH]: "ETH",
+    [BRLA] : "BRLA",
+}
+
+export const reverseNames = {
+    "USDC": USDC,
+    "ETH": ETH,
+    "BRLA": BRLA,
 }
 
 export const createSmartAccount = async () => {
@@ -43,7 +51,7 @@ export const getSmartAccountBalances = async (privateKey: string) => {
         signer: client,
         bundlerUrl,
     });
-    const balances = await smartAccount.getBalances([USDC]);
+    const balances = await smartAccount.getBalances([USDC, BRLA]);
     const balancesFormatted = balances.map((balance) => {
         return `${names[balance.address]}: ${balance.formattedAmount}`;
     });
