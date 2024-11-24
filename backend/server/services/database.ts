@@ -1,7 +1,7 @@
 import pg from "pg";
 
 const pool = new pg.Pool({
-    connectionString: "postgres://postgres:password@127.0.0.1:5432/codechat_api_v1?schema=public",
+    connectionString: "postgres://postgres:password@postgres/codechat_api_v1?schema=public",
 });
 
 export async function checkBlacklist(threadId: string) {
