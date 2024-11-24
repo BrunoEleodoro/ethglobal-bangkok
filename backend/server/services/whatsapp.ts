@@ -15,7 +15,7 @@ export async function sendWhatsAppMessage(number: string, text: string, botName:
     const config = {
         method: "post",
         maxBodyLength: Infinity,
-        url: `http://127.0.0.1:8084/message/sendText/${botName}`,
+        url: `http://codechat_api:8084/message/sendText/${botName}`,
         headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${jwtToken}`,
@@ -43,7 +43,7 @@ export async function sendWhatsAppMedia(
     const config = {
         method: "post",
         maxBodyLength: Infinity,
-        url: `http://127.0.0.1:8084/message/sendMedia/${botName}`,
+        url: `http://codechat_api:8084/message/sendMedia/${botName}`,
         headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${jwtToken}`,
