@@ -134,8 +134,8 @@ export default eventHandler(async (event) => {
             });
             console.log("swapQuote", swapQuote);
             return [{
-                to: BRLA,
-                data: encodeApproveData(swapQuote.transactionRequest.to, '10', 18),
+                to: USDC,
+                data: encodeApproveData(swapQuote.transactionRequest.to, item.fromAmount, 18),
                 nonce: 0
             },{
                 to: swapQuote.transactionRequest.to,

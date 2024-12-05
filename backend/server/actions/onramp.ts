@@ -1,29 +1,17 @@
 import axios from "axios";
 import QRCode from 'qrcode';
 
+const baseURL = 'https://hopper-onramp-jl29xec9g-thiagorochatrs-projects.vercel.app';
+
 export async function generatePix(amount: string) {
-  const token = process.env.TOKEN;
-  console.log("TOKEN", token);
-  console.log("AMOUNT", amount);
-
-  const options = {
-    method: 'GET',
-    url: `https://api.brla.digital:5567/v1/business/pay-in/br-code?amount=${amount}`,
-    headers: {
-      accept: 'application/json',
-      authorization: `Bearer ${token}`,
-    },
-  };
-
   try {
-    const response = await axios.request(options);
-    const brCode = response.data.brCode;
-    const qrCodeDataURL = await QRCode.toDataURL(brCode, { type: 'image/png' });
-    const base64 = qrCodeDataURL.split(',')[1];
+    const response = await axios.get(`${baseURL}/generate-pix`, {
+      params: { amount }
+    });
 
     return {
-      brCode,
-      base64,
+      brCode: response.data.brCode,
+      base64: response.data.base64
     };
   } catch (error) {
     console.error('Erro ao gerar o QR Code:', error);
@@ -38,25 +26,11 @@ export async function onchainTransfer(params: {
   to: string;
   value: number;
 }) {
-  const token = process.env.TOKEN;
-
-  const options = {
-    method: 'POST',
-    url: 'https://api.brla.digital:5567/v1/business/on-chain/transfer',
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      authorization: `Bearer ${token}`,
-    },
-    data: params,
-  };
-  
   try {
-    const response = await axios.request(options);
+    const response = await axios.post(`${baseURL}/onchain-transfer`, params);
     return response.data;
   } catch (error) {
     console.error('Erro na operação on-chain:', error);
     throw error;
   }
 }
-
