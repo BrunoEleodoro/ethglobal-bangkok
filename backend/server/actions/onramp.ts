@@ -1,7 +1,7 @@
 import axios from "axios";
 import QRCode from 'qrcode';
 
-const baseURL = 'https://hopper-onramp-jl29xec9g-thiagorochatrs-projects.vercel.app';
+const baseURL = 'https://hopper-onramp.onrender.com';
 
 export async function generatePix(amount: string) {
   try {
